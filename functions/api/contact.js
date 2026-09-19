@@ -54,6 +54,129 @@ async function verifyTurnstile(context, token) {
   }
 }
 
+function escapeHtml(str) {
+  return String(str)
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
+}
+
+// ===== メール本文（HTML）: サイトのデザイン（空色・ミント・コーラル）に合わせたテンプレート =====
+// メールクライアント互換のため table レイアウト + インラインCSSのみを使用しています
+function buildHtmlEmail({ name, phone, email, message }) {
+  const FONT = "'Zen Maru Gothic','Hiragino Maru Gothic ProN','Hiragino Kaku Gothic ProN','Yu Gothic','Meiryo',sans-serif";
+  const INK = '#2C3A36';
+  const INK_SOFT = '#5C6D67';
+  const SKY_DEEP = '#4A8DB8';
+  const MINT_DEEP = '#5FB9A0';
+  const CORAL = '#FF9E85';
+
+  const receivedAt = new Date().toLocaleString('ja-JP', {
+    timeZone: 'Asia/Tokyo',
+    year: 'numeric', month: 'long', day: 'numeric',
+    weekday: 'short', hour: '2-digit', minute: '2-digit',
+  });
+
+  const safeName = escapeHtml(name);
+  const safeMessage = escapeHtml(message).replace(/\r?\n/g, '<br>');
+
+  const telDigits = phone.replace(/[^\d+]/g, '');
+  const phoneHtml = phone
+    ? `<a href="tel:${escapeHtml(telDigits)}" style="color:${INK};text-decoration:none;font-weight:700;">${escapeHtml(phone)}</a>`
+    : `<span style="color:#9AA8A3;">未入力</span>`;
+  const emailHtml = email
+    ? `<a href="mailto:${escapeHtml(email)}" style="color:${SKY_DEEP};text-decoration:none;font-weight:700;">${escapeHtml(email)}</a>`
+    : `<span style="color:#9AA8A3;">未入力</span>`;
+
+  // 返信ボタン: メールがあればメール返信、なければ電話
+  const cta = email
+    ? { href: `mailto:${escapeHtml(email)}?subject=${encodeURIComponent('Re: お問い合わせありがとうございます（磯部医院）')}`, label: '✉ メールで返信する', bg: SKY_DEEP }
+    : { href: `tel:${escapeHtml(telDigits)}`, label: '☎ 電話をかける', bg: MINT_DEEP };
+
+  const row = (label, valueHtml) => `
+        <tr>
+          <td style="padding:14px 0;border-bottom:1px solid #EAF1EE;font-family:${FONT};">
+            <div style="font-size:12px;letter-spacing:.08em;color:${INK_SOFT};margin-bottom:4px;">${label}</div>
+            <div style="font-size:16px;color:${INK};line-height:1.6;">${valueHtml}</div>
+          </td>
+        </tr>`;
+
+  return `<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="color-scheme" content="light">
+<title>新しいお問い合わせ</title>
+</head>
+<body style="margin:0;padding:0;background-color:#F3F8F6;">
+<div style="display:none;max-height:0;overflow:hidden;opacity:0;font-size:1px;line-height:1px;color:#F3F8F6;">${safeName}様よりお問い合わせが届きました</div>
+<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="background-color:#F3F8F6;">
+  <tr>
+    <td align="center" style="padding:32px 16px;">
+      <table role="presentation" width="600" cellpadding="0" cellspacing="0" border="0" style="width:100%;max-width:600px;">
+
+        <!-- ヘッダー -->
+        <tr>
+          <td bgcolor="#7EB8D6" style="background-color:#7EB8D6;background-image:linear-gradient(135deg,#7EB8D6 0%,#8FD4C1 100%);border-radius:24px 24px 0 0;padding:32px 36px 28px;font-family:${FONT};">
+            <div style="font-size:13px;letter-spacing:.14em;color:#FFFFFF;opacity:.95;">NEW INQUIRY ／ ウェブサイトより</div>
+            <div style="font-size:26px;font-weight:900;color:#FFFFFF;margin-top:8px;letter-spacing:.06em;">磯部医院</div>
+            <div style="font-size:15px;color:#FFFFFF;margin-top:6px;">新しいお問い合わせが届きました</div>
+          </td>
+        </tr>
+
+        <!-- 本文カード -->
+        <tr>
+          <td style="background-color:#FFFFFF;padding:32px 36px 8px;font-family:${FONT};">
+            <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0">
+              <tr>
+                <td style="font-family:${FONT};padding-bottom:6px;">
+                  <span style="display:inline-block;background-color:#FFF1EC;color:#E5735A;font-size:12px;font-weight:700;padding:5px 12px;border-radius:999px;">📩 受信 ${escapeHtml(receivedAt)}</span>
+                </td>
+              </tr>
+              ${row('お名前', `<span style="font-size:18px;font-weight:700;">${safeName} 様</span>`)}
+              ${row('電話番号', phoneHtml)}
+              ${row('メールアドレス', emailHtml)}
+            </table>
+
+            <!-- お問い合わせ内容 -->
+            <div style="font-family:${FONT};font-size:12px;letter-spacing:.08em;color:${INK_SOFT};margin:24px 0 8px;">お問い合わせ内容</div>
+            <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0">
+              <tr>
+                <td style="background-color:#FBFBF6;border-left:4px solid ${CORAL};border-radius:12px;padding:18px 20px;font-family:${FONT};font-size:15px;line-height:1.9;color:${INK};">${safeMessage}</td>
+              </tr>
+            </table>
+
+            <!-- 返信ボタン -->
+            <table role="presentation" cellpadding="0" cellspacing="0" border="0" align="center" style="margin:32px auto 28px;">
+              <tr>
+                <td align="center" bgcolor="${cta.bg}" style="background-color:${cta.bg};border-radius:999px;">
+                  <a href="${cta.href}" style="display:inline-block;padding:14px 36px;font-family:${FONT};font-size:15px;font-weight:700;color:#FFFFFF;text-decoration:none;border-radius:999px;">${cta.label}</a>
+                </td>
+              </tr>
+            </table>
+          </td>
+        </tr>
+
+        <!-- フッター -->
+        <tr>
+          <td style="background-color:#FFFFFF;border-top:1px solid #EAF1EE;border-radius:0 0 24px 24px;padding:22px 36px 28px;font-family:${FONT};font-size:12px;line-height:1.8;color:${INK_SOFT};">
+            このメールは磯部医院公式サイトのお問い合わせフォームから自動送信されました。<br>
+            「返信」ボタンでお問い合わせ者へ直接返信できます。<br>
+            <span style="color:#9AA8A3;">〒612-8105 京都府京都市伏見区東奉行町1 桃山グランドハイツ2階 ／ TEL 075-574-7447</span>
+          </td>
+        </tr>
+
+      </table>
+    </td>
+  </tr>
+</table>
+</body>
+</html>`;
+}
+
 async function sendViaBrevo(context, { name, phone, email, message }) {
   return fetch('https://api.brevo.com/v3/smtp/email', {
     method: 'POST',
@@ -69,6 +192,8 @@ async function sendViaBrevo(context, { name, phone, email, message }) {
       to: [{ email: 'clinic.isobe@gmail.com', name: '磯部医院' }],
       replyTo: email ? { email, name } : undefined,
       subject: `【ウェブサイト】新しいお問い合わせ - ${name}様`,
+      htmlContent: buildHtmlEmail({ name, phone, email, message }),
+      // HTML非対応のメールクライアント向けのテキスト版
       textContent:
         `お名前: ${name}
 ` +
